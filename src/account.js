@@ -1,3 +1,4 @@
+import { fetchKeys } from './apikeys.js';
 import { createMail, extractCode, fetchInbox } from './mail.js';
 import { applyStealth } from './fingerprint.js';
 import { cached, self } from './geo.js';
@@ -115,11 +116,17 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
         if (!(await waitForCode(page, cfg, used, ua, debug))) throw new Error('verify failed');
       }
 
+      const keys = await fetchKeys(page, { info, debug }).catch(e => {
+        debug(`keys: ${e.message}`);
+        return [];
+      });
+
       return {
         ok: true,
         account: {
           email: used,
           password,
+          keys,
           createdAt: new Date().toISOString(),
           proxy: proxyUrl || 'none'
         }

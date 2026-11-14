@@ -30,6 +30,7 @@ On Linux without a display, the script re-executes itself under `xvfb-run` autom
 - Fingerprint hygiene: timezone derived from proxy (or own IP) via `ip-api`, WebGL vendor/renderer spoofed, real Chrome used when installed
 - 3 retries per account with a fresh proxy and context; a burned email is replaced after submit
 - Fail-fast Turnstile wait (20s per attempt)
+- Extracts API keys from the new account (`GET /api/keys`, creates one if the list is empty) and stores them in `list.json`
 - Atomic save (`list.json.tmp` → `list.json`) with email dedupe
 
 ## Structure
@@ -37,6 +38,7 @@ On Linux without a display, the script re-executes itself under `xvfb-run` autom
 ```
 index.js            CLI + orchestration
 src/account.js      signup flow with retries
+src/apikeys.js      API key extraction (/api/keys)
 src/mail.js         tempmail client + code extraction
 src/proxy.js        load, validate, pick proxies
 src/geo.js          proxy/self geo lookup (timezone source)
@@ -48,7 +50,13 @@ src/turnstile.js    challenge wait (fail-fast)
 
 ```json
 [
-  { "email": "abc@tempmail.ing", "password": "Str0ngP@ss!", "createdAt": "2026-...", "proxy": "none" }
+  {
+    "email": "abc@tempmail.ing",
+    "password": "Str0ngP@ss!",
+    "keys": ["sk-xxxxxxxxxxxxxxxxxxxx"],
+    "createdAt": "2026-...",
+    "proxy": "none"
+  }
 ]
 ```
 

@@ -126,7 +126,8 @@ class Gen {
           this.accounts.push(result.account);
           await this.save();
           this.stats.ok++;
-          console.log(C.s(`[ok] ${result.account.email}`));
+          const keyCount = result.account.keys.length;
+          console.log(C.s(`[ok] ${result.account.email} (${keyCount} key${keyCount === 1 ? '' : 's'})`));
         } else if (!result.ok) {
           this.stats.fail++;
           console.log(C.e(`[fail] ${result.error}`));
