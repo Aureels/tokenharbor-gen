@@ -37,11 +37,20 @@ export async function fetchInbox(email, ua, log = () => {}) {
 
 export function extractCode(emails) {
   for (const m of emails) {
-    const body = m.html || m.body || m.text || '';
+    const body = m.html || m.body || m.text || m.content || '';
     const code = body.match(/(\d{6})/);
     if (code) return code[1];
     const link = body.match(/tokenharbor\.ai\/verify\?code=([^"'\s]+)/);
     if (link) return link[1];
+  }
+  return null;
+}
+
+export function extractVerifyLink(emails) {
+  for (const m of emails) {
+    const body = m.html || m.body || m.text || m.content || '';
+    const link = body.match(/https:\/\/tokenharbor\.ai\/verify-email\?token=[^"'\s<>]+/);
+    if (link) return link[0];
   }
   return null;
 }

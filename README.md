@@ -16,6 +16,7 @@ npm start 1                # 1 account, direct (no proxy)
 npm start 5                # 5 accounts, direct
 npm start 5 -- --proxy     # 5 accounts, use proxies.txt
 npm start 1 -- --debug     # verbose logs
+npm start -- --keys        # log in saved accounts and fill their API keys
 ```
 
 On Linux without a display, the script re-executes itself under `xvfb-run` automatically. `npm run start:xvfb` does the same explicitly.
@@ -30,7 +31,9 @@ On Linux without a display, the script re-executes itself under `xvfb-run` autom
 - Fingerprint hygiene: timezone derived from proxy (or own IP) via `ip-api`, WebGL vendor/renderer spoofed, real Chrome used when installed
 - 3 retries per account with a fresh proxy and context; a burned email is replaced after submit
 - Fail-fast Turnstile wait (20s per attempt)
-- Extracts API keys from the new account (`GET /api/keys`, creates one if the list is empty) and stores them in `list.json`
+- Extracts API keys from the new account (`GET /api/keys`, creates one with a label if no plaintext exists) and stores them in `list.json`
+- Opens the `verify-email` link from the inbox so the key can actually call `/v1/models` (API is gated on email verification)
+- `--keys` re-logs saved accounts (email + password) and refreshes their keys
 - Atomic save (`list.json.tmp` → `list.json`) with email dedupe
 
 ## Structure
@@ -53,7 +56,7 @@ src/turnstile.js    challenge wait (fail-fast)
   {
     "email": "abc@tempmail.ing",
     "password": "Str0ngP@ss!",
-    "keys": ["sk-xxxxxxxxxxxxxxxxxxxx"],
+    "keys": ["thk_live_xxxxxxxxxxxxxxxxxxxxxxxx"],
     "createdAt": "2026-...",
     "proxy": "none"
   }

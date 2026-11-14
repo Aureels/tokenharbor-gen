@@ -1,4 +1,4 @@
-const KEY_RE = /\b(?:sk|tk|th)-[A-Za-z0-9_-]{16,}\b/;
+const KEY_RE = /\bthk_[A-Za-z0-9_-]{20,}\b|\b(?:sk|tk|th)-[A-Za-z0-9_-]{20,}\b/;
 
 function deepFind(value, out) {
   if (typeof value === 'string') {
@@ -11,7 +11,7 @@ function deepFind(value, out) {
   }
   if (value && typeof value === 'object') {
     for (const [name, v] of Object.entries(value)) {
-      if (typeof v === 'string' && v.length > 16 && /key|secret|token/i.test(name)) out.add(v);
+      if (typeof v === 'string' && v.length > 20 && /plaintext|secret|token|apikey/i.test(name)) out.add(v);
       else deepFind(v, out);
     }
   }
@@ -27,18 +27,18 @@ async function readKeys(page) {
   });
 }
 
-async function createKey(page, name) {
-  return page.evaluate(async keyName => {
+async function createKey(page, label) {
+  return page.evaluate(async keyLabel => {
     const res = await fetch('/api/keys', {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify({ name: keyName })
+      body: JSON.stringify({ label: keyLabel })
     });
     const text = await res.text();
     let json = null;
     try { json = JSON.parse(text); } catch {}
     return { status: res.status, json, text };
-  }, name);
+  }, label);
 }
 
 async function scanDom(page) {

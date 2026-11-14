@@ -5,7 +5,7 @@ import UserAgent from 'user-agents';
 import fs from 'fs-extra';
 import { SingleBar, Presets } from 'cli-progress';
 import chalk from 'chalk';
-import { runAccount } from './src/account.js';
+import { loginAndFetchKeys, runAccount } from './src/account.js';
 import { cached, lookup } from './src/geo.js';
 import { hostOf, loadProxies, validateProxies } from './src/proxy.js';
 
@@ -102,11 +102,8 @@ class Gen {
     await fs.rename(tmp, CFG.outFile);
   }
 
-  async run(n) {
-    info(`[start] ${n} accounts`);
-    this.bar.start(n, 0, { success: 0, failed: 0 });
-
-    const browser = await chromium.launch({
+  launch() {
+    return chromium.launch({
       headless: false,
       channel: CHANNEL,
       args: [
@@ -117,6 +114,13 @@ class Gen {
         '--window-size=1366,768'
       ]
     });
+  }
+
+  async run(n) {
+    info(`[start] ${n} accounts`);
+    this.bar.start(n, 0, { success: 0, failed: 0 });
+
+    const browser = await this.launch();
 
     try {
       for (let i = 0; i < n; i++) {
@@ -146,9 +150,36 @@ class Gen {
     console.log(C.e(`  fail: ${this.stats.fail}`));
     console.log(C.i(`  file: ${CFG.outFile}`));
   }
+
+  async runKeys() {
+    const targets = this.accounts.filter(a => a.email && a.password);
+    if (!targets.length) {
+      console.log(C.w('[warn] no accounts with credentials in list.json'));
+      return;
+    }
+    info(`[keys] ${targets.length} account(s)`);
+
+    const browser = await this.launch();
+    try {
+      for (const account of targets) {
+        const result = await loginAndFetchKeys({ browser, cfg: CFG, agents: this.agents, account, info, debug });
+        if (!result.ok) {
+          console.log(C.e(`[fail] ${account.email}: ${result.error}`));
+          continue;
+        }
+        account.keys = result.keys;
+        await this.save();
+        console.log(C.s(`[ok] ${account.email} (${result.keys.length} key${result.keys.length === 1 ? '' : 's'})`));
+      }
+    } finally {
+      await browser.close().catch(() => {});
+    }
+
+    console.log(C.i(`  file: ${CFG.outFile}`));
+  }
 }
 
-new Gen().init().then(g => g.run(COUNT)).catch(e => {
+new Gen().init().then(g => (ARGS.includes('--keys') ? g.runKeys() : g.run(COUNT))).catch(e => {
   console.error(C.e(e.message));
   process.exit(1);
 });

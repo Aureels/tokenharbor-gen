@@ -1,5 +1,5 @@
 import { fetchKeys } from './apikeys.js';
-import { createMail, extractCode, fetchInbox } from './mail.js';
+import { createMail, extractCode, extractVerifyLink, fetchInbox } from './mail.js';
 import { applyStealth } from './fingerprint.js';
 import { cached, self } from './geo.js';
 import { hostOf, pick, toPlaywrightProxy } from './proxy.js';
@@ -57,13 +57,23 @@ async function verify(page, baseUrl, code) {
   }
 }
 
-async function waitForCode(page, cfg, email, ua, log) {
+async function waitForVerifyLink(page, cfg, email, ua, log) {
   for (let i = 0; i < cfg.mailPolls; i++) {
     await sleep(cfg.mailInterval);
-    const code = extractCode(await fetchInbox(email, ua, log));
-    if (!code) continue;
-    log(`code: ${code}`);
-    return verify(page, cfg.url, code);
+    const emails = await fetchInbox(email, ua, log);
+
+    const link = extractVerifyLink(emails);
+    if (link) {
+      await page.goto(link, { waitUntil: 'domcontentloaded', timeout: cfg.timeout });
+      log('email verified');
+      return true;
+    }
+
+    const code = extractCode(emails);
+    if (code) {
+      log(`code: ${code}`);
+      return verify(page, cfg.url, code);
+    }
   }
   return false;
 }
@@ -112,14 +122,13 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
       email = null;
       if (!result.ok) throw new Error(result.alerts.join('; '));
 
-      if (/verify/.test(result.url)) {
-        if (!(await waitForCode(page, cfg, used, ua, debug))) throw new Error('verify failed');
-      }
-
       const keys = await fetchKeys(page, { info, debug }).catch(e => {
         debug(`keys: ${e.message}`);
         return [];
       });
+
+      const verified = await waitForVerifyLink(page, cfg, used, ua, debug).catch(() => false);
+      if (/verify/.test(result.url) && !verified) throw new Error('verify failed');
 
       return {
         ok: true,
@@ -141,4 +150,44 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
   }
 
   return { ok: false, error: lastError };
+}
+
+export async function loginAndFetchKeys({ browser, cfg, agents, account, info, debug }) {
+  const geoInfo = await self();
+  const options = {
+    userAgent: pick(agents),
+    viewport: { width: 1366, height: 768 },
+    locale: 'en-US',
+    ignoreHTTPSErrors: true
+  };
+  if (geoInfo?.timezone) options.timezoneId = geoInfo.timezone;
+
+  const context = await browser.newContext(options);
+  try {
+    await applyStealth(context);
+    const page = await context.newPage();
+    info(`login: ${account.email}`);
+
+    await page.goto(`${cfg.url}/login`, { waitUntil: 'domcontentloaded', timeout: cfg.timeout });
+    if (!(await waitForReady(page, { timeout: cfg.turnstileTimeout, log: debug }))) {
+      throw new Error('turnstile timeout');
+    }
+
+    await page.fill(SEL.email, account.email);
+    await page.fill(SEL.password, account.password);
+    await page.click(SEL.submit);
+    await page.waitForURL(/dashboard/, { timeout: 30000 }).catch(() => {});
+
+    if (!/dashboard/.test(page.url())) {
+      const alerts = await readAlerts(page);
+      throw new Error(alerts.join('; ') || `login stuck at ${page.url()}`);
+    }
+
+    const keys = await fetchKeys(page, { info, debug });
+    return { ok: true, keys };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  } finally {
+    await context.close().catch(() => {});
+  }
 }
