@@ -1,7 +1,7 @@
 import { fetchKeys } from './apikeys.js';
 import { checkFreeModel, enableFreeModels } from './freemodels.js';
 import { createMail, extractCode, extractVerifyLink, fetchInbox } from './mail.js';
-import { applyStealth } from './fingerprint.js';
+import { applyStealth, randomProfile } from './fingerprint.js';
 import { cached, self } from './geo.js';
 import { hostOf, pick, toPlaywrightProxy } from './proxy.js';
 import { waitForReady } from './turnstile.js';
@@ -97,9 +97,10 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
     const proxyUrl = proxies.length ? pick(proxies) : null;
     const ua = pick(agents);
     const geoInfo = proxyUrl ? cached(hostOf(proxyUrl)) : await self();
+    const profile = randomProfile();
     const options = {
       userAgent: ua,
-      viewport: { width: 1366, height: 768 },
+      viewport: profile.viewport,
       locale: 'en-US',
       ignoreHTTPSErrors: true
     };
@@ -109,7 +110,7 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
     let submitted = false;
 
     try {
-      await applyStealth(context);
+      await applyStealth(context, profile);
       const page = await context.newPage();
 
       if (!email) email = await createMail(ua, debug);
