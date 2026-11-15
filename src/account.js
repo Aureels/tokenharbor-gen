@@ -1,4 +1,5 @@
 import { fetchKeys } from './apikeys.js';
+import { enableFreeModels } from './freemodels.js';
 import { createMail, extractCode, extractVerifyLink, fetchInbox } from './mail.js';
 import { applyStealth } from './fingerprint.js';
 import { cached, self } from './geo.js';
@@ -122,6 +123,8 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
       email = null;
       if (!result.ok) throw new Error(result.alerts.join('; '));
 
+      await enableFreeModels(page, { info, debug }).catch(e => debug(`free models: ${e.message}`));
+
       const keys = await fetchKeys(page, { info, debug }).catch(e => {
         debug(`keys: ${e.message}`);
         return [];
@@ -182,6 +185,8 @@ export async function loginAndFetchKeys({ browser, cfg, agents, account, info, d
       const alerts = await readAlerts(page);
       throw new Error(alerts.join('; ') || `login stuck at ${page.url()}`);
     }
+
+    await enableFreeModels(page, { info, debug }).catch(e => debug(`free models: ${e.message}`));
 
     const keys = await fetchKeys(page, { info, debug });
     return { ok: true, keys };

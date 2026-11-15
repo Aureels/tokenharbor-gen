@@ -32,6 +32,7 @@ On Linux without a display, the script re-executes itself under `xvfb-run` autom
 - 3 retries per account with a fresh proxy and context; a burned email is replaced after submit
 - Fail-fast Turnstile wait (20s per attempt)
 - Extracts API keys from the new account (`GET /api/keys`, creates one with a label if no plaintext exists) and stores them in `list.json`
+- Enables the dashboard "Free models" consent (`/api/me/privacy`) if it is off
 - Opens the `verify-email` link from the inbox so the key can actually call `/v1/models` (API is gated on email verification)
 - `--keys` re-logs saved accounts (email + password) and refreshes their keys
 - Atomic save (`list.json.tmp` → `list.json`) with email dedupe
@@ -42,6 +43,7 @@ On Linux without a display, the script re-executes itself under `xvfb-run` autom
 index.js            CLI + orchestration
 src/account.js      signup flow with retries
 src/apikeys.js      API key extraction (/api/keys)
+src/freemodels.js   enables the free-models consent on the dashboard
 src/mail.js         tempmail client + code extraction
 src/proxy.js        load, validate, pick proxies
 src/geo.js          proxy/self geo lookup (timezone source)
