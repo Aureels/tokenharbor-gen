@@ -31,8 +31,8 @@ async function readAlerts(page) {
 }
 
 async function submit(page, email, password) {
-  await page.fill(SEL.email, email, { timeout: 10000 });
-  await page.fill(SEL.password, password, { timeout: 10000 });
+  await page.fill(SEL.email, email, { timeout: 20000 });
+  await page.fill(SEL.password, password, { timeout: 20000 });
   const invite = await page.$(SEL.invite);
   if (invite) await invite.fill('', { timeout: 5000 }).catch(() => {});
   const age = await page.$(SEL.age);
