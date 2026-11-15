@@ -30,7 +30,7 @@ const CFG = {
   path: '/login?mode=signup',
   outFile: 'list.json',
   proxyFile: 'proxies.txt',
-  timeout: 60000,
+  timeout: 30000,
   attempts: 3,
   turnstileTimeout: 20000,
   mailPolls: 30,
