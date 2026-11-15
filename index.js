@@ -32,6 +32,7 @@ const CFG = {
   proxyFile: 'proxies.txt',
   timeout: 40000,
   attempts: 3,
+  workers: 10,
   turnstileTimeout: 30000,
   mailPolls: 30,
   mailInterval: 5000,
@@ -123,18 +124,28 @@ class Gen {
   }
 
   async run(n) {
-    info(`[start] ${n} accounts`);
+    const workers = Math.max(1, Number(process.env.WORKERS || CFG.workers));
+    info(`[start] ${n} accounts, ${workers} threads`);
     this.bar.start(n, 0, { success: 0, failed: 0 });
 
     const browser = await this.launch();
+    let next = 0;
+    let saveChain = Promise.resolve();
+    const persist = () => {
+      saveChain = saveChain.then(() => this.save()).catch(() => {});
+      return saveChain;
+    };
 
-    try {
-      for (let i = 0; i < n; i++) {
+    const worker = async () => {
+      for (;;) {
+        const index = next++;
+        if (index >= n) return;
+
         const result = await runAccount({ browser, cfg: CFG, proxies: this.proxies, agents: this.agents, info, debug });
 
         if (result.ok && !this.accounts.some(a => a.email === result.account.email)) {
           this.accounts.push(result.account);
-          await this.save();
+          await persist();
           this.stats.ok++;
           const keyCount = result.account.keys.length;
           console.log(C.s(`[ok] ${result.account.email} (${keyCount} key${keyCount === 1 ? '' : 's'}, free: ${result.account.free_model})`));
@@ -144,8 +155,12 @@ class Gen {
         }
 
         this.bar.increment(1, { success: this.stats.ok, failed: this.stats.fail });
-        if (i < n - 1) await new Promise(r => setTimeout(r, Math.random() * (CFG.delay[1] - CFG.delay[0]) + CFG.delay[0]));
+        await new Promise(r => setTimeout(r, Math.random() * (CFG.delay[1] - CFG.delay[0]) + CFG.delay[0]));
       }
+    };
+
+    try {
+      await Promise.all(Array.from({ length: workers }, worker));
     } finally {
       await browser.close().catch(() => {});
     }
