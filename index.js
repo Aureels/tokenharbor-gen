@@ -31,7 +31,7 @@ const CFG = {
   outFile: 'list.json',
   proxyFile: 'proxies.txt',
   timeout: 40000,
-  attempts: 3,
+  attempts: 2,
   workers: 50,
   turnstileTimeout: 30000,
   mailPolls: 24,

@@ -4,22 +4,46 @@ const API = 'https://api.tempmail.ing';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-export async function createMail(ua, log = () => {}, retries = 8) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const { data } = await axios.post(`${API}/api/generate`, {}, {
-        headers: { 'User-Agent': ua, 'Content-Type': 'application/json' },
-        timeout: 15000
-      });
-      const email = data?.email?.address || data?.email;
-      if (email) return email;
-      log(`tempmail: empty response (attempt ${i + 1})`);
-    } catch (e) {
-      log(`tempmail: ${e.message} (attempt ${i + 1})`);
-    }
-    await sleep(1500 + i * 1500 + Math.random() * 1500);
+const MAIL_LIMIT = Number(process.env.MAIL_CONCURRENCY || 8);
+let active = 0;
+const waiting = [];
+
+async function acquire() {
+  if (active < MAIL_LIMIT) {
+    active++;
+    return;
   }
-  throw new Error('tempmail failed');
+  await new Promise(resolve => waiting.push(resolve));
+  active++;
+}
+
+function release() {
+  active--;
+  const next = waiting.shift();
+  if (next) next();
+}
+
+export async function createMail(ua, log = () => {}, retries = 5) {
+  await acquire();
+  try {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const { data } = await axios.post(`${API}/api/generate`, {}, {
+          headers: { 'User-Agent': ua, 'Content-Type': 'application/json' },
+          timeout: 15000
+        });
+        const email = data?.email?.address || data?.email;
+        if (email) return email;
+        log(`tempmail: empty response (attempt ${i + 1})`);
+      } catch (e) {
+        log(`tempmail: ${e.message} (attempt ${i + 1})`);
+      }
+      await sleep(1000 + i * 1000 + Math.random() * 1000);
+    }
+    throw new Error('tempmail failed');
+  } finally {
+    release();
+  }
 }
 
 export async function fetchInbox(email, ua, log = () => {}) {

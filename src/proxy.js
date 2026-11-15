@@ -80,5 +80,7 @@ export async function validateProxies(list, log = () => {}) {
 
 export function pick(list) {
   if (!list.length) return null;
-  return list[Math.floor(Math.random() * list.length)];
+  const socks = list.filter(url => url.startsWith('socks'));
+  const pool = socks.length && Math.random() < 0.6 ? socks : list;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
