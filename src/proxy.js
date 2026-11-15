@@ -3,8 +3,8 @@ import fs from 'fs-extra';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
 const CHECK_URL = 'https://api.ipify.org';
-const CHECK_TIMEOUT = 5000;
-const CONCURRENCY = 25;
+const CHECK_TIMEOUT = Number(process.env.PROXY_TIMEOUT || 5000);
+const CONCURRENCY = Number(process.env.PROXY_CONCURRENCY || 50);
 
 const PATTERN = /^(socks[45]|https?):\/\/(?:([^:@]+):([^@]+)@)?([^:]+):(\d+)$/;
 
@@ -32,30 +32,37 @@ export function toPlaywrightProxy(url) {
 }
 
 function check(url) {
-  const match = url.match(PATTERN);
-  if (!match) return Promise.resolve(false);
+  try {
+    const match = url.match(PATTERN);
+    if (!match) return Promise.resolve(false);
 
-  const [, protocol, username, password, host, port] = match;
-  const isSocks = protocol.startsWith('socks');
-  const auth = username ? `${username}:${password}@` : '';
+    const [, protocol, username, password, host, port] = match;
+    const numericPort = parseInt(port);
+    if (!(numericPort >= 1 && numericPort <= 65535)) return Promise.resolve(false);
 
-  const request = isSocks
-    ? (() => {
-        const agent = new SocksProxyAgent(`${protocol}://${auth}${host}:${port}`);
-        return axios.get(CHECK_URL, { httpAgent: agent, httpsAgent: agent, timeout: CHECK_TIMEOUT });
-      })()
-    : axios.get(CHECK_URL, {
-        proxy: { protocol, host, port: parseInt(port), ...(username ? { auth: { username, password } } : {}) },
-        timeout: CHECK_TIMEOUT
-      });
+    const isSocks = protocol.startsWith('socks');
+    const auth = username ? `${username}:${password}@` : '';
 
-  const attempt = request
-    .then(res => typeof res.data === 'string' && res.data.trim().length > 0)
-    .catch(() => false);
+    const request = isSocks
+      ? (() => {
+          const agent = new SocksProxyAgent(`${protocol}://${auth}${host}:${numericPort}`);
+          return axios.get(CHECK_URL, { httpAgent: agent, httpsAgent: agent, timeout: CHECK_TIMEOUT });
+        })()
+      : axios.get(CHECK_URL, {
+          proxy: { protocol, host, port: numericPort, ...(username ? { auth: { username, password } } : {}) },
+          timeout: CHECK_TIMEOUT
+        });
 
-  const guard = new Promise(resolve => setTimeout(() => resolve(false), CHECK_TIMEOUT + 1500));
+    const attempt = request
+      .then(res => typeof res.data === 'string' && res.data.trim().length > 0)
+      .catch(() => false);
 
-  return Promise.race([attempt, guard]);
+    const guard = new Promise(resolve => setTimeout(() => resolve(false), CHECK_TIMEOUT + 1500));
+
+    return Promise.race([attempt, guard]);
+  } catch {
+    return Promise.resolve(false);
+  }
 }
 
 export async function validateProxies(list, log = () => {}) {
