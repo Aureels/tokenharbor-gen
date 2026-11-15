@@ -151,6 +151,34 @@ class Gen {
     console.log(C.i(`  file: ${CFG.outFile}`));
   }
 
+  async runPrune() {
+    const kept = [];
+    const total = this.accounts.length;
+    const browser = await this.launch();
+    try {
+      for (const account of this.accounts) {
+        if (!account.keys?.length) {
+          console.log(C.e(`[drop] ${account.email}: no key`));
+          continue;
+        }
+        const result = await loginAndFetchKeys({ browser, cfg: CFG, agents: this.agents, account, info, debug });
+        if (result.ok && ['active', 'quota'].includes(result.free.status)) {
+          account.keys = result.keys;
+          account.free_model = result.free.status;
+          kept.push(account);
+          console.log(C.s(`[keep] ${account.email} (${result.free.status})`));
+        } else {
+          console.log(C.e(`[drop] ${account.email}: ${result.ok ? result.free.status : result.error}`));
+        }
+      }
+    } finally {
+      await browser.close().catch(() => {});
+    }
+    this.accounts = kept;
+    await this.save();
+    console.log(C.i(`[prune] kept ${kept.length}/${total} — file: ${CFG.outFile}`));
+  }
+
   async runKeys() {
     const targets = this.accounts.filter(a => a.email && a.password);
     if (!targets.length) {
@@ -180,7 +208,11 @@ class Gen {
   }
 }
 
-new Gen().init().then(g => (ARGS.includes('--keys') ? g.runKeys() : g.run(COUNT))).catch(e => {
+new Gen().init().then(g => {
+  if (ARGS.includes('--prune')) return g.runPrune();
+  if (ARGS.includes('--keys')) return g.runKeys();
+  return g.run(COUNT);
+}).catch(e => {
   console.error(C.e(e.message));
   process.exit(1);
 });

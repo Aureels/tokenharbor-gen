@@ -1,5 +1,6 @@
 import axios from 'axios';
 import fs from 'fs-extra';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 
 const CHECK_URL = 'https://api.ipify.org';
 const CHECK_TIMEOUT = 5000;
@@ -30,18 +31,25 @@ export function toPlaywrightProxy(url) {
   return { server: `${protocol}://${host}:${port}`, ...(username ? { username, password } : {}) };
 }
 
-function toAxiosProxy(url) {
-  const m = url.match(PATTERN);
-  if (!m) return null;
-  const [, protocol, username, password, host, port] = m;
-  return { protocol, host, port: parseInt(port), ...(username ? { auth: { username, password } } : {}) };
-}
-
 function check(url) {
-  const proxy = toAxiosProxy(url);
-  if (!proxy) return Promise.resolve(false);
+  const match = url.match(PATTERN);
+  if (!match) return Promise.resolve(false);
 
-  const attempt = axios.get(CHECK_URL, { proxy, timeout: CHECK_TIMEOUT })
+  const [, protocol, username, password, host, port] = match;
+  const isSocks = protocol.startsWith('socks');
+  const auth = username ? `${username}:${password}@` : '';
+
+  const request = isSocks
+    ? (() => {
+        const agent = new SocksProxyAgent(`${protocol}://${auth}${host}:${port}`);
+        return axios.get(CHECK_URL, { httpAgent: agent, httpsAgent: agent, timeout: CHECK_TIMEOUT });
+      })()
+    : axios.get(CHECK_URL, {
+        proxy: { protocol, host, port: parseInt(port), ...(username ? { auth: { username, password } } : {}) },
+        timeout: CHECK_TIMEOUT
+      });
+
+  const attempt = request
     .then(res => typeof res.data === 'string' && res.data.trim().length > 0)
     .catch(() => false);
 
