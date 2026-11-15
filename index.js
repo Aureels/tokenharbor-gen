@@ -32,10 +32,10 @@ const CFG = {
   proxyFile: 'proxies.txt',
   timeout: 40000,
   attempts: 3,
-  workers: 10,
+  workers: 50,
   turnstileTimeout: 30000,
-  mailPolls: 30,
-  mailInterval: 5000,
+  mailPolls: 24,
+  mailInterval: 4000,
   delay: [5000, 15000]
 };
 

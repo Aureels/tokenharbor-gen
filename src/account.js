@@ -112,6 +112,10 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
     try {
       await applyStealth(context, profile);
       const page = await context.newPage();
+      await page.route('**/*', route => {
+        const type = route.request().resourceType();
+        return ['image', 'media', 'font'].includes(type) ? route.abort() : route.continue();
+      });
 
       if (!email) email = await createMail(ua, debug);
       info(`acc: ${email} via ${proxyUrl || 'direct'} (attempt ${attempt})`);
