@@ -72,6 +72,12 @@ class Gen {
       console.log(C.w('[warn] proxies.txt empty, running direct'));
       return;
     }
+    if (process.env.SKIP_VALIDATE === '1') {
+      this.proxies = list;
+      info(`[proxy] using ${list.length} pre-validated proxies`);
+      return;
+    }
+
     info(`[proxy] validating ${list.length} proxies...`);
     this.proxies = await validateProxies(list, debug);
     info(`[proxy] ${this.proxies.length} alive`);
