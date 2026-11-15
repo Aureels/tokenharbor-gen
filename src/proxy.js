@@ -37,15 +37,17 @@ function toAxiosProxy(url) {
   return { protocol, host, port: parseInt(port), ...(username ? { auth: { username, password } } : {}) };
 }
 
-async function check(url) {
+function check(url) {
   const proxy = toAxiosProxy(url);
-  if (!proxy) return false;
-  try {
-    const { data } = await axios.get(CHECK_URL, { proxy, timeout: CHECK_TIMEOUT });
-    return typeof data === 'string' && data.trim().length > 0;
-  } catch {
-    return false;
-  }
+  if (!proxy) return Promise.resolve(false);
+
+  const attempt = axios.get(CHECK_URL, { proxy, timeout: CHECK_TIMEOUT })
+    .then(res => typeof res.data === 'string' && res.data.trim().length > 0)
+    .catch(() => false);
+
+  const guard = new Promise(resolve => setTimeout(() => resolve(false), CHECK_TIMEOUT + 1500));
+
+  return Promise.race([attempt, guard]);
 }
 
 export async function validateProxies(list, log = () => {}) {

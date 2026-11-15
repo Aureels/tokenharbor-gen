@@ -140,13 +140,13 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
         return [];
       });
 
+      const verified = await waitForVerifyLink(page, cfg, used, ua, debug).catch(() => false);
+      if (/verify/.test(result.url) && !verified) throw new Error('verify failed');
+
       const picked = await pickFreeKey(keys);
       const free = picked.free;
       if (free.status === 'active') info('free model: active');
       else debug(`free model: ${free.status} (${free.code}${free.detail ? ` ${free.detail}` : ''})`);
-
-      const verified = await waitForVerifyLink(page, cfg, used, ua, debug).catch(() => false);
-      if (/verify/.test(result.url) && !verified) throw new Error('verify failed');
 
       return {
         ok: true,

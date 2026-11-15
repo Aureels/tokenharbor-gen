@@ -3,3 +3,4 @@ list.json
 *.tmp
 .env
 scripts/
+.cache/
