@@ -1,3 +1,37 @@
+import axios from 'axios';
+
+const CHAT_API = 'https://tokenharbor.ai/v1/chat/completions';
+const PROBE_MODEL = 'deepseek-v4.1-flash:free';
+
+export async function checkFreeModel(key, { model = PROBE_MODEL, timeout = 60000 } = {}) {
+  try {
+    const res = await axios.post(
+      CHAT_API,
+      { model, messages: [{ role: 'user', content: 'hi' }] },
+      {
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Mozilla/5.0'
+        },
+        timeout,
+        validateStatus: () => true
+      }
+    );
+
+    if (res.status === 200) return { status: 'active', code: 200 };
+    if (res.status === 429) return { status: 'quota', code: 429 };
+
+    const body = JSON.stringify(res.data || {});
+    if (res.status === 403 && /free_models_disabled/.test(body)) return { status: 'disabled', code: 403 };
+
+    const detail = res.data?.error?.code || res.data?.error?.type || body.slice(0, 80);
+    return { status: 'error', code: res.status, detail: String(detail) };
+  } catch (e) {
+    return { status: 'error', code: 0, detail: e.message };
+  }
+}
+
 async function privacy(page) {
   return page.evaluate(async () => {
     const res = await fetch('/api/me/privacy', { headers: { accept: 'application/json' } });

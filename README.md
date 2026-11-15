@@ -33,6 +33,7 @@ On Linux without a display, the script re-executes itself under `xvfb-run` autom
 - Fail-fast Turnstile wait (20s per attempt)
 - Extracts API keys from the new account (`GET /api/keys`, creates one with a label if no plaintext exists) and stores them in `list.json`
 - Enables the dashboard "Free models" consent (`/api/me/privacy`) if it is off
+- Verifies the free route with `POST /v1/chat/completions` (`deepseek-v4.1-flash:free`): `200` → `active`, `403 free_models_disabled` → `disabled`, `429` → `quota`, stored as `free_model`
 - Opens the `verify-email` link from the inbox so the key can actually call `/v1/models` (API is gated on email verification)
 - `--keys` re-logs saved accounts (email + password) and refreshes their keys
 - Atomic save (`list.json.tmp` → `list.json`) with email dedupe
@@ -59,6 +60,7 @@ src/turnstile.js    challenge wait (fail-fast)
     "email": "abc@tempmail.ing",
     "password": "Str0ngP@ss!",
     "keys": ["thk_live_xxxxxxxxxxxxxxxxxxxxxxxx"],
+    "free_model": "active",
     "createdAt": "2026-...",
     "proxy": "none"
   }

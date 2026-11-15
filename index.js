@@ -131,7 +131,7 @@ class Gen {
           await this.save();
           this.stats.ok++;
           const keyCount = result.account.keys.length;
-          console.log(C.s(`[ok] ${result.account.email} (${keyCount} key${keyCount === 1 ? '' : 's'})`));
+          console.log(C.s(`[ok] ${result.account.email} (${keyCount} key${keyCount === 1 ? '' : 's'}, free: ${result.account.free_model})`));
         } else if (!result.ok) {
           this.stats.fail++;
           console.log(C.e(`[fail] ${result.error}`));
@@ -168,8 +168,9 @@ class Gen {
           continue;
         }
         account.keys = result.keys;
+        account.free_model = result.free.status;
         await this.save();
-        console.log(C.s(`[ok] ${account.email} (${result.keys.length} key${result.keys.length === 1 ? '' : 's'})`));
+        console.log(C.s(`[ok] ${account.email} (${result.keys.length} key${result.keys.length === 1 ? '' : 's'}, free: ${result.free.status})`));
       }
     } finally {
       await browser.close().catch(() => {});

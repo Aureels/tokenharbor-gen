@@ -1,5 +1,5 @@
 import { fetchKeys } from './apikeys.js';
-import { enableFreeModels } from './freemodels.js';
+import { checkFreeModel, enableFreeModels } from './freemodels.js';
 import { createMail, extractCode, extractVerifyLink, fetchInbox } from './mail.js';
 import { applyStealth } from './fingerprint.js';
 import { cached, self } from './geo.js';
@@ -56,6 +56,16 @@ async function verify(page, baseUrl, code) {
   } catch {
     return false;
   }
+}
+
+async function pickFreeKey(keys) {
+  let first = null;
+  for (const key of keys) {
+    const result = await checkFreeModel(key);
+    if (!first) first = result;
+    if (result.status === 'active') return { key, free: result };
+  }
+  return { key: keys[0] || null, free: first || { status: 'no-key', code: 0 } };
 }
 
 async function waitForVerifyLink(page, cfg, email, ua, log) {
@@ -130,6 +140,11 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
         return [];
       });
 
+      const picked = await pickFreeKey(keys);
+      const free = picked.free;
+      if (free.status === 'active') info('free model: active');
+      else debug(`free model: ${free.status} (${free.code}${free.detail ? ` ${free.detail}` : ''})`);
+
       const verified = await waitForVerifyLink(page, cfg, used, ua, debug).catch(() => false);
       if (/verify/.test(result.url) && !verified) throw new Error('verify failed');
 
@@ -138,7 +153,8 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
         account: {
           email: used,
           password,
-          keys,
+          keys: picked.key ? [picked.key] : [],
+          free_model: free.status,
           createdAt: new Date().toISOString(),
           proxy: proxyUrl || 'none'
         }
@@ -188,8 +204,20 @@ export async function loginAndFetchKeys({ browser, cfg, agents, account, info, d
 
     await enableFreeModels(page, { info, debug }).catch(e => debug(`free models: ${e.message}`));
 
+    if (account.keys?.length) {
+      const existing = await pickFreeKey(account.keys);
+      if (existing.free.status === 'active' || existing.free.status === 'quota') {
+        info(`free model: ${existing.free.status}`);
+        return { ok: true, keys: account.keys, free: existing.free };
+      }
+    }
+
     const keys = await fetchKeys(page, { info, debug });
-    return { ok: true, keys };
+    const picked = await pickFreeKey(keys);
+    if (picked.free.status === 'active') info('free model: active');
+    else debug(`free model: ${picked.free.status} (${picked.free.code})`);
+
+    return { ok: true, keys: picked.key ? [picked.key] : [], free: picked.free };
   } catch (e) {
     return { ok: false, error: e.message };
   } finally {
