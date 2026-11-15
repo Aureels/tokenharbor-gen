@@ -4,7 +4,7 @@ const API = 'https://api.tempmail.ing';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-export async function createMail(ua, log = () => {}, retries = 5) {
+export async function createMail(ua, log = () => {}, retries = 8) {
   for (let i = 0; i < retries; i++) {
     try {
       const { data } = await axios.post(`${API}/api/generate`, {}, {
@@ -17,7 +17,7 @@ export async function createMail(ua, log = () => {}, retries = 5) {
     } catch (e) {
       log(`tempmail: ${e.message} (attempt ${i + 1})`);
     }
-    await sleep(2000);
+    await sleep(1500 + i * 1500 + Math.random() * 1500);
   }
   throw new Error('tempmail failed');
 }
