@@ -35,7 +35,7 @@ const CFG = {
   workers: 50,
   turnstileTimeout: 15000,
   mailPolls: 24,
-  mailInterval: 4000,
+  mailInterval: 2000,
   delay: [5000, 15000]
 };
 
