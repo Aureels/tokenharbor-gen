@@ -104,12 +104,6 @@ class Gen {
   }
 
   async save() {
-    const tmp = `${CFG.outFile}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify(this.accounts, null, 2));
-    await fs.rename(tmp, CFG.outFile);
-  }
-
-  async saveMerged() {
     let current = [];
     try {
       current = JSON.parse(await fs.readFile(CFG.outFile, 'utf-8'));
@@ -117,14 +111,24 @@ class Gen {
 
     for (const account of this.accounts) {
       const index = current.findIndex(x => x.email === account.email);
-      if (index >= 0) current[index] = account;
-      else current.push(account);
+      if (index < 0) {
+        current.push(account);
+        continue;
+      }
+      const onDisk = current[index];
+      const diskActive = onDisk.free_model === 'active';
+      const memActive = account.free_model === 'active';
+      current[index] = diskActive && !memActive ? onDisk : account;
     }
 
     const tmp = `${CFG.outFile}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(current, null, 2));
     await fs.rename(tmp, CFG.outFile);
     this.accounts = current;
+  }
+
+  async saveMerged() {
+    await this.save();
   }
 
   launch() {
