@@ -175,9 +175,9 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
       if (submitted) mail = null;
 
       if (proxyUrl) {
-        if (/Too many sign-ups|can't create another account/i.test(e.message)) markProxy(proxyUrl, 60, 'network-limit');
-        else if (/turnstile timeout/i.test(e.message)) markProxy(proxyUrl, 30, 'turnstile');
-        else if (/ERR_TUNNEL|ERR_PROXY|ERR_EMPTY|ERR_CONNECTION|Timeout/i.test(e.message)) markProxy(proxyUrl, 20, 'dead');
+        if (/Too many sign-ups|can't create another account/i.test(e.message)) markProxy(proxyUrl, 20, 'network-limit');
+        else if (/turnstile timeout/i.test(e.message)) markProxy(proxyUrl, 8, 'turnstile');
+        else if (/ERR_TUNNEL|ERR_PROXY|ERR_EMPTY|ERR_CONNECTION|Timeout/i.test(e.message)) markProxy(proxyUrl, 8, 'dead');
       }
 
       debug(`attempt ${attempt} failed: ${e.message}`);
