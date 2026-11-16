@@ -3,7 +3,7 @@ import { checkFreeModel, enableFreeModels } from './freemodels.js';
 import { createMail, extractCode, extractVerifyLink, fetchInbox } from './mail.js';
 import { applyStealth, randomProfile } from './fingerprint.js';
 import { cached, self } from './geo.js';
-import { hostOf, markProxy, pick, toPlaywrightProxy } from './proxy.js';
+import { hostOf, markProxy, markSuccess, pick, toPlaywrightProxy } from './proxy.js';
 import { waitForReady } from './turnstile.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -157,6 +157,8 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
       const free = picked.free;
       if (free.status === 'active') info('free model: active');
       else debug(`free model: ${free.status} (${free.code}${free.detail ? ` ${free.detail}` : ''})`);
+
+      if (proxyUrl) markSuccess(proxyUrl);
 
       return {
         ok: true,

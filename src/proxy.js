@@ -2,7 +2,7 @@ import axios from 'axios';
 import fs from 'fs-extra';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
-const CHECK_URL = 'https://api.ipify.org';
+const CHECK_URL = process.env.PROXY_CHECK_URL || 'https://tokenharbor.ai/v1/models';
 const CHECK_TIMEOUT = Number(process.env.PROXY_TIMEOUT || 5000);
 const CONCURRENCY = Number(process.env.PROXY_CONCURRENCY || 50);
 
@@ -50,11 +50,12 @@ function check(url) {
         })()
       : axios.get(CHECK_URL, {
           proxy: { protocol, host, port: numericPort, ...(username ? { auth: { username, password } } : {}) },
-          timeout: CHECK_TIMEOUT
+          timeout: CHECK_TIMEOUT,
+          validateStatus: () => true
         });
 
     const attempt = request
-      .then(res => typeof res.data === 'string' && res.data.trim().length > 0)
+      .then(res => res.status > 0)
       .catch(() => false);
 
     const guard = new Promise(resolve => setTimeout(() => resolve(false), CHECK_TIMEOUT + 1500));
@@ -94,6 +95,16 @@ function persist() {
   }, 2000);
 }
 
+export function markSuccess(url) {
+  if (!url) return;
+  const entry = state[url] || { uses: 0 };
+  entry.wins = (entry.wins || 0) + 1;
+  entry.until = 0;
+  entry.reason = 'ok';
+  state[url] = entry;
+  persist();
+}
+
 export function markProxy(url, minutes, reason) {
   if (!url) return;
   const entry = state[url] || { uses: 0 };
@@ -118,8 +129,8 @@ export function pick(list) {
   const candidates = socks.length && Math.random() < 0.7 ? socks : pool;
 
   const ranked = candidates
-    .map(url => ({ url, uses: state[url]?.uses || 0 }))
-    .sort((a, b) => a.uses - b.uses);
+    .map(url => ({ url, uses: state[url]?.uses || 0, wins: state[url]?.wins || 0 }))
+    .sort((a, b) => (b.wins - a.wins) || (a.uses - b.uses));
 
   const window = ranked.slice(0, Math.max(1, Math.ceil(ranked.length * 0.3)));
   const chosen = window[Math.floor(Math.random() * window.length)].url;
