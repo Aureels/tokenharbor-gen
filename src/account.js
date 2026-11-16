@@ -225,7 +225,19 @@ export async function loginAndFetchKeys({ browser, cfg, agents, account, info, d
     await enableFreeModels(page, { info, debug }).catch(e => debug(`free models: ${e.message}`));
 
     if (attemptVerify) {
-      const verified = await waitForVerifyLink(page, cfg, { email: account.email, token: account.mail_token }, pick(agents), debug).catch(() => false);
+      const cred = { email: account.email, token: account.mail_token };
+      let verified = await waitForVerifyLink(page, cfg, cred, pick(agents), debug).catch(() => false);
+
+      if (!verified) {
+        const resend = page.getByRole('button', { name: /verify email|resend/i }).first();
+        if (await resend.count()) {
+          await resend.click({ timeout: 5000 }).catch(() => {});
+          debug('verify: resend clicked');
+          await sleep(5000);
+          verified = await waitForVerifyLink(page, cfg, cred, pick(agents), debug).catch(() => false);
+        }
+      }
+
       debug(`verify attempt: ${verified ? 'ok' : 'no link'}`);
       if (verified && /login/.test(page.url())) {
         await page.fill(SEL.email, account.email).catch(() => {});
