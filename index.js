@@ -109,6 +109,24 @@ class Gen {
     await fs.rename(tmp, CFG.outFile);
   }
 
+  async saveMerged() {
+    let current = [];
+    try {
+      current = JSON.parse(await fs.readFile(CFG.outFile, 'utf-8'));
+    } catch {}
+
+    for (const account of this.accounts) {
+      const index = current.findIndex(x => x.email === account.email);
+      if (index >= 0) current[index] = account;
+      else current.push(account);
+    }
+
+    const tmp = `${CFG.outFile}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify(current, null, 2));
+    await fs.rename(tmp, CFG.outFile);
+    this.accounts = current;
+  }
+
   launch() {
     return chromium.launch({
       headless: false,
@@ -172,6 +190,38 @@ class Gen {
     console.log(C.i(`  file: ${CFG.outFile}`));
   }
 
+  async runFix() {
+    const targets = this.accounts.filter(a => a.email && a.password && !['active', 'quota'].includes(a.free_model));
+    if (!targets.length) {
+      console.log(C.i('[fix] nothing to fix'));
+      return;
+    }
+    info(`[fix] ${targets.length} account(s)`);
+
+    const browser = await this.launch();
+    let changed = 0;
+    try {
+      for (const account of targets) {
+        const result = await loginAndFetchKeys({
+          browser, cfg: CFG, agents: this.agents, account, info, debug, attemptVerify: true
+        });
+        if (!result.ok) {
+          console.log(C.e(`[fail] ${account.email}: ${result.error}`));
+          continue;
+        }
+        account.keys = result.keys.length ? result.keys : account.keys;
+        account.free_model = result.free.status;
+        if (result.free.status === 'active' || result.free.status === 'quota') changed++;
+        await this.saveMerged();
+        console.log(C.s(`[${result.free.status}] ${account.email}`));
+      }
+    } finally {
+      await browser.close().catch(() => {});
+    }
+
+    console.log(C.i(`[fix] ${changed}/${targets.length} recovered — ${CFG.outFile}`));
+  }
+
   async runPrune() {
     const kept = [];
     const total = this.accounts.length;
@@ -230,6 +280,7 @@ class Gen {
 }
 
 new Gen().init().then(g => {
+  if (ARGS.includes('--fix')) return g.runFix();
   if (ARGS.includes('--prune')) return g.runPrune();
   if (ARGS.includes('--keys')) return g.runKeys();
   return g.run(COUNT);

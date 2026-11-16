@@ -3,7 +3,20 @@ import axios from 'axios';
 const CHAT_API = 'https://tokenharbor.ai/v1/chat/completions';
 const PROBE_MODEL = 'deepseek-v4.1-flash:free';
 
-export async function checkFreeModel(key, { model = PROBE_MODEL, timeout = 60000 } = {}) {
+export async function checkFreeModel(key, { model = PROBE_MODEL, timeout = 60000, retries = 2 } = {}) {
+  let last = { status: 'error', code: 0, detail: 'no attempt' };
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt) await new Promise(r => setTimeout(r, 3000));
+    last = await once(key, model, timeout);
+    if (last.status !== 'error') return last;
+    if (last.code && last.code !== 0 && last.code < 500) return last;
+  }
+
+  return last;
+}
+
+async function once(key, model, timeout) {
   try {
     const res = await axios.post(
       CHAT_API,

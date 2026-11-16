@@ -148,7 +148,12 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
       const verified = await waitForVerifyLink(page, cfg, used, ua, debug).catch(() => false);
       if (/verify/.test(result.url) && !verified) throw new Error('verify failed');
 
-      const picked = await pickFreeKey(keys);
+      let picked = await pickFreeKey(keys);
+      if (picked.free.status === 'error') {
+        await sleep(5000);
+        const retry = await pickFreeKey(keys);
+        if (retry.free.status !== 'error') picked = retry;
+      }
       const free = picked.free;
       if (free.status === 'active') info('free model: active');
       else debug(`free model: ${free.status} (${free.code}${free.detail ? ` ${free.detail}` : ''})`);
@@ -176,7 +181,7 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
   return { ok: false, error: lastError };
 }
 
-export async function loginAndFetchKeys({ browser, cfg, agents, account, info, debug }) {
+export async function loginAndFetchKeys({ browser, cfg, agents, account, info, debug, attemptVerify = false }) {
   const geoInfo = await self();
   const options = {
     userAgent: pick(agents),
@@ -208,6 +213,17 @@ export async function loginAndFetchKeys({ browser, cfg, agents, account, info, d
     }
 
     await enableFreeModels(page, { info, debug }).catch(e => debug(`free models: ${e.message}`));
+
+    if (attemptVerify) {
+      const verified = await waitForVerifyLink(page, cfg, account.email, pick(agents), debug).catch(() => false);
+      debug(`verify attempt: ${verified ? 'ok' : 'no link'}`);
+      if (verified && /login/.test(page.url())) {
+        await page.fill(SEL.email, account.email).catch(() => {});
+        await page.fill(SEL.password, account.password).catch(() => {});
+        await page.click(SEL.submit).catch(() => {});
+        await page.waitForURL(/dashboard/, { timeout: 30000 }).catch(() => {});
+      }
+    }
 
     if (account.keys?.length) {
       const existing = await pickFreeKey(account.keys);
