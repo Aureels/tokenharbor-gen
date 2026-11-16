@@ -23,7 +23,7 @@ function release() {
   if (next) next();
 }
 
-export async function createMail(ua, log = () => {}, retries = 5) {
+export async function createMail(ua, log = () => {}, retries = 6) {
   await acquire();
   try {
     for (let i = 0; i < retries; i++) {
@@ -38,7 +38,7 @@ export async function createMail(ua, log = () => {}, retries = 5) {
       } catch (e) {
         log(`tempmail: ${e.message} (attempt ${i + 1})`);
       }
-      await sleep(1000 + i * 1000 + Math.random() * 1000);
+      await sleep(2000 + i * 2000 + Math.random() * 1000);
     }
     throw new Error('tempmail failed');
   } finally {
