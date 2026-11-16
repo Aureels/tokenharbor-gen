@@ -78,9 +78,56 @@ export async function validateProxies(list, log = () => {}) {
   return alive;
 }
 
+const STATE_FILE = '.cache/proxy-state.json';
+const state = {};
+
+try {
+  Object.assign(state, JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8')));
+} catch {}
+
+let saveTimer = null;
+function persist() {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    fs.writeFile(STATE_FILE, JSON.stringify(state)).catch(() => {});
+  }, 2000);
+}
+
+export function markProxy(url, minutes, reason) {
+  if (!url) return;
+  const entry = state[url] || { uses: 0 };
+  entry.uses = (entry.uses || 0) + 1;
+  entry.until = Date.now() + minutes * 60000;
+  entry.reason = reason;
+  state[url] = entry;
+  persist();
+}
+
 export function pick(list) {
   if (!list.length) return null;
-  const socks = list.filter(url => url.startsWith('socks'));
-  const pool = socks.length && Math.random() < 0.6 ? socks : list;
-  return pool[Math.floor(Math.random() * pool.length)];
+
+  const now = Date.now();
+  const ready = list.filter(url => {
+    const entry = state[url];
+    return !entry || !entry.until || entry.until < now;
+  });
+
+  const pool = ready.length ? ready : list;
+  const socks = pool.filter(url => url.startsWith('socks'));
+  const candidates = socks.length && Math.random() < 0.7 ? socks : pool;
+
+  const ranked = candidates
+    .map(url => ({ url, uses: state[url]?.uses || 0 }))
+    .sort((a, b) => a.uses - b.uses);
+
+  const window = ranked.slice(0, Math.max(1, Math.ceil(ranked.length * 0.3)));
+  const chosen = window[Math.floor(Math.random() * window.length)].url;
+
+  const entry = state[chosen] || { uses: 0 };
+  entry.uses = (entry.uses || 0) + 1;
+  state[chosen] = entry;
+  persist();
+
+  return chosen;
 }

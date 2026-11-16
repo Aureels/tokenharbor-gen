@@ -3,7 +3,7 @@ import { checkFreeModel, enableFreeModels } from './freemodels.js';
 import { createMail, extractCode, extractVerifyLink, fetchInbox } from './mail.js';
 import { applyStealth, randomProfile } from './fingerprint.js';
 import { cached, self } from './geo.js';
-import { hostOf, pick, toPlaywrightProxy } from './proxy.js';
+import { hostOf, markProxy, pick, toPlaywrightProxy } from './proxy.js';
 import { waitForReady } from './turnstile.js';
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -117,14 +117,14 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
         return ['image', 'media', 'font'].includes(type) ? route.abort() : route.continue();
       });
 
-      if (!mail) mail = await createMail(ua, debug);
-      info(`acc: ${mail.email} via ${proxyUrl || 'direct'} (attempt ${attempt})`);
-
       await page.goto(`${cfg.url}${cfg.path}`, { waitUntil: 'domcontentloaded', timeout: cfg.timeout });
 
       if (!(await waitForReady(page, { timeout: cfg.turnstileTimeout, log: debug }))) {
         throw new Error('turnstile timeout');
       }
+
+      if (!mail) mail = await createMail(ua, debug);
+      info(`acc: ${mail.email} via ${proxyUrl || 'direct'} (attempt ${attempt})`);
 
       let password = strongPass();
       submitted = true;
@@ -173,6 +173,13 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
     } catch (e) {
       lastError = e.message;
       if (submitted) mail = null;
+
+      if (proxyUrl) {
+        if (/Too many sign-ups|can't create another account/i.test(e.message)) markProxy(proxyUrl, 60, 'network-limit');
+        else if (/turnstile timeout/i.test(e.message)) markProxy(proxyUrl, 30, 'turnstile');
+        else if (/ERR_TUNNEL|ERR_PROXY|ERR_EMPTY|ERR_CONNECTION|Timeout/i.test(e.message)) markProxy(proxyUrl, 20, 'dead');
+      }
+
       debug(`attempt ${attempt} failed: ${e.message}`);
     } finally {
       await context.close().catch(() => {});
