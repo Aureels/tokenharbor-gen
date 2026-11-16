@@ -2,7 +2,7 @@ import axios from 'axios';
 import fs from 'fs-extra';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 
-const CHECK_URL = process.env.PROXY_CHECK_URL || 'https://tokenharbor.ai/v1/models';
+const CHECK_URL = process.env.PROXY_CHECK_URL || 'https://api.ipify.org';
 const CHECK_TIMEOUT = Number(process.env.PROXY_TIMEOUT || 5000);
 const CONCURRENCY = Number(process.env.PROXY_CONCURRENCY || 50);
 
