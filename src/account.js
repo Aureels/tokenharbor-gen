@@ -68,10 +68,10 @@ async function pickFreeKey(keys) {
   return { key: keys[0] || null, free: first || { status: 'no-key', code: 0 } };
 }
 
-async function waitForVerifyLink(page, cfg, email, ua, log) {
+async function waitForVerifyLink(page, cfg, mail, ua, log) {
   for (let i = 0; i < cfg.mailPolls; i++) {
     await sleep(cfg.mailInterval);
-    const emails = await fetchInbox(email, ua, log);
+    const emails = await fetchInbox(mail, ua, log);
 
     const link = extractVerifyLink(emails);
     if (link) {
@@ -90,7 +90,7 @@ async function waitForVerifyLink(page, cfg, email, ua, log) {
 }
 
 export async function runAccount({ browser, cfg, proxies, agents, info, debug }) {
-  let email = null;
+  let mail = null;
   let lastError = 'unknown';
 
   for (let attempt = 1; attempt <= cfg.attempts; attempt++) {
@@ -117,8 +117,8 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
         return ['image', 'media', 'font'].includes(type) ? route.abort() : route.continue();
       });
 
-      if (!email) email = await createMail(ua, debug);
-      info(`acc: ${email} via ${proxyUrl || 'direct'} (attempt ${attempt})`);
+      if (!mail) mail = await createMail(ua, debug);
+      info(`acc: ${mail.email} via ${proxyUrl || 'direct'} (attempt ${attempt})`);
 
       await page.goto(`${cfg.url}${cfg.path}`, { waitUntil: 'domcontentloaded', timeout: cfg.timeout });
 
@@ -128,14 +128,14 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
 
       let password = strongPass();
       submitted = true;
-      let result = await submit(page, email, password);
+      let result = await submit(page, mail.email, password);
       if (!result.ok && result.alerts.some(a => /password/i.test(a))) {
         password = strongPass();
-        result = await submit(page, email, password);
+        result = await submit(page, mail.email, password);
       }
 
-      const used = email;
-      email = null;
+      const used = mail;
+      mail = null;
       if (!result.ok) throw new Error(result.alerts.join('; '));
 
       await enableFreeModels(page, { info, debug }).catch(e => debug(`free models: ${e.message}`));
@@ -161,7 +161,8 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
       return {
         ok: true,
         account: {
-          email: used,
+          email: used.email,
+          mail_token: used.token || undefined,
           password,
           keys: picked.key ? [picked.key] : [],
           free_model: free.status,
@@ -171,7 +172,7 @@ export async function runAccount({ browser, cfg, proxies, agents, info, debug })
       };
     } catch (e) {
       lastError = e.message;
-      if (submitted) email = null;
+      if (submitted) mail = null;
       debug(`attempt ${attempt} failed: ${e.message}`);
     } finally {
       await context.close().catch(() => {});
@@ -215,7 +216,7 @@ export async function loginAndFetchKeys({ browser, cfg, agents, account, info, d
     await enableFreeModels(page, { info, debug }).catch(e => debug(`free models: ${e.message}`));
 
     if (attemptVerify) {
-      const verified = await waitForVerifyLink(page, cfg, account.email, pick(agents), debug).catch(() => false);
+      const verified = await waitForVerifyLink(page, cfg, { email: account.email, token: account.mail_token }, pick(agents), debug).catch(() => false);
       debug(`verify attempt: ${verified ? 'ok' : 'no link'}`);
       if (verified && /login/.test(page.url())) {
         await page.fill(SEL.email, account.email).catch(() => {});
